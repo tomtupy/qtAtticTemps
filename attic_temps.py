@@ -41,10 +41,10 @@ class AtticTempsWindow(QMainWindow):
     def connect_to_db(self):
         try:
             self.db_conn = psycopg2.connect(
-                host=os.environ.get("DB_HOST", "localhost"),
+                host=os.environ.get("DB_HOST", "[IP_ADDRESS]"),
                 database=os.environ.get("DB_NAME", "2phome"),
                 user=os.environ.get("USER", "pi"),
-                password=os.environ.get("PASS", "pass")
+                password=os.environ.get("PASS", "<PASSWORD>")
             )
             self.db_conn.autocommit = True
             print("Connected to DB")
@@ -101,8 +101,11 @@ class AtticTempsWindow(QMainWindow):
                 rows = cur.fetchall()
 
                 sensorData = {}
+                latest_time = None
                 for row in rows:
                     sensorId, time, data, secondaryData, _ = row
+                    if latest_time is None or time > latest_time:
+                        latest_time = time
                     sensorData[sensorId] = {
                         "data": float(data) if data is not None else float('nan'),
                         "secondaryData": float(secondaryData) if secondaryData is not None else float('nan')
@@ -117,6 +120,30 @@ class AtticTempsWindow(QMainWindow):
                     self.drawFillFarWest(sensorData.get(1235, {}).get("data", float('nan')))
                     self.drawFillWest(sensorData.get(1236, {}).get("data", float('nan')), sensorData.get(1236, {}).get("secondaryData", float('nan')))
                     self.drawFillNorth(sensorData.get(1237, {}).get("data", float('nan')), sensorData.get(1237, {}).get("secondaryData", float('nan')))
+
+                    if latest_time:
+                        if latest_time.tzinfo is not None:
+                            latest_time_naive = latest_time.replace(tzinfo=None)
+                        else:
+                            latest_time_naive = latest_time
+                        
+                        diff = now - latest_time_naive
+                        secs = int(diff.total_seconds())
+                        if secs < 0:
+                            secs = 0
+                            
+                        if secs < 60:
+                            time_str = f"{secs} seconds ago"
+                        elif secs < 3600:
+                            time_str = f"{secs // 60} minutes ago"
+                        else:
+                            time_str = f"{secs // 3600} hours ago"
+                            
+                        font = QFont()
+                        font.setPointSize(8)
+                        text_item = self.house_scene.addText(time_str, font)
+                        text_item.setDefaultTextColor(QColor("#888888"))
+                        text_item.setPos(5, 248)
 
         except Exception as e:
             print(f"DB Query Error: {e}")
