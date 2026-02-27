@@ -86,7 +86,11 @@ class AtticTempsWindow(QMainWindow):
         self.poll_db()  # initial call
 
     def poll_db(self):
-        if not self.db_conn:
+        if self.db_conn is None or getattr(self.db_conn, 'closed', 1) != 0:
+            print("Attempting to reconnect to DB...")
+            self.connect_to_db()
+
+        if self.db_conn is None or getattr(self.db_conn, 'closed', 1) != 0:
             return
 
         print("Querying DB")
@@ -145,9 +149,18 @@ class AtticTempsWindow(QMainWindow):
                         text_item.setDefaultTextColor(QColor("#888888"))
                         text_item.setPos(5, 248)
 
+        except psycopg2.OperationalError as e:
+            print(f"DB Operational Error: {e}")
+            self.db_conn = None
+        except psycopg2.InterfaceError as e:
+            print(f"DB Interface Error: {e}")
+            self.db_conn = None
         except Exception as e:
             print(f"DB Query Error: {e}")
-            self.db_conn.rollback()
+            try:
+                self.db_conn.rollback()
+            except Exception:
+                pass
 
     def getAtticGradientBrush(self, temp):
         try:
