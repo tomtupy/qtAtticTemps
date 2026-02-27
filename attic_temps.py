@@ -46,6 +46,7 @@ class AtticTempsWindow(QMainWindow):
                 user=os.environ.get("USER", "pi"),
                 password=os.environ.get("PASS", "pass")
             )
+            self.db_conn.autocommit = True
             print("Connected to DB")
         except Exception as e:
             print(f"Failed to connect to DB: {e}")
