@@ -3,6 +3,9 @@ import math
 import os
 import psycopg2
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from PyQt6.QtWidgets import QMainWindow, QApplication, QGraphicsView, QGraphicsScene, QGraphicsTextItem, QWidget, QVBoxLayout, QHBoxLayout
 from PyQt6.QtGui import QPolygonF, QBrush, QColor, QPen, QLinearGradient, QPixmap, QPainter, QFont
@@ -33,6 +36,8 @@ class AtticTempsWindow(QMainWindow):
 
         self.atticTempGradientPixels = None
         self.db_conn = None
+        self.latest_time = None
+        self.last_sensor_data = {}
 
         self.connect_to_db()
         self.drawHouse()
@@ -104,32 +109,36 @@ class AtticTempsWindow(QMainWindow):
                 cur.execute(queryStr)
                 rows = cur.fetchall()
 
-                sensorData = {}
-                latest_time = None
+                current_sensorData = {}
+                current_latest_time = None
                 for row in rows:
                     sensorId, time, data, secondaryData, _ = row
-                    if latest_time is None or time > latest_time:
-                        latest_time = time
-                    sensorData[sensorId] = {
+                    if current_latest_time is None or time > current_latest_time:
+                        current_latest_time = time
+                    current_sensorData[sensorId] = {
                         "data": float(data) if data is not None else float('nan'),
                         "secondaryData": float(secondaryData) if secondaryData is not None else float('nan')
                     }
                 
-                if sensorData:
+                if current_sensorData:
+                    self.last_sensor_data = current_sensorData
+                    self.latest_time = current_latest_time
+                
+                if self.last_sensor_data:
                     self.house_scene.clear()
                     self.drawHouse()
-                    self.drawFillFarSouth(sensorData.get(1238, {}).get("data", float('nan')))
-                    self.drawFillSouth(sensorData.get(1239, {}).get("data", float('nan')))
-                    self.drawFillFarNorth(sensorData.get(1240, {}).get("data", float('nan')))
-                    self.drawFillFarWest(sensorData.get(1235, {}).get("data", float('nan')))
-                    self.drawFillWest(sensorData.get(1236, {}).get("data", float('nan')), sensorData.get(1236, {}).get("secondaryData", float('nan')))
-                    self.drawFillNorth(sensorData.get(1237, {}).get("data", float('nan')), sensorData.get(1237, {}).get("secondaryData", float('nan')))
+                    self.drawFillFarSouth(self.last_sensor_data.get(1238, {}).get("data", float('nan')))
+                    self.drawFillSouth(self.last_sensor_data.get(1239, {}).get("data", float('nan')))
+                    self.drawFillFarNorth(self.last_sensor_data.get(1240, {}).get("data", float('nan')))
+                    self.drawFillFarWest(self.last_sensor_data.get(1235, {}).get("data", float('nan')))
+                    self.drawFillWest(self.last_sensor_data.get(1236, {}).get("data", float('nan')), self.last_sensor_data.get(1236, {}).get("secondaryData", float('nan')))
+                    self.drawFillNorth(self.last_sensor_data.get(1237, {}).get("data", float('nan')), self.last_sensor_data.get(1237, {}).get("secondaryData", float('nan')))
 
-                    if latest_time:
-                        if latest_time.tzinfo is not None:
-                            latest_time_naive = latest_time.replace(tzinfo=None)
+                    if self.latest_time:
+                        if self.latest_time.tzinfo is not None:
+                            latest_time_naive = self.latest_time.replace(tzinfo=None)
                         else:
-                            latest_time_naive = latest_time
+                            latest_time_naive = self.latest_time
                         
                         diff = now - latest_time_naive
                         secs = int(diff.total_seconds())
@@ -140,8 +149,10 @@ class AtticTempsWindow(QMainWindow):
                             time_str = f"{secs} seconds ago"
                         elif secs < 3600:
                             time_str = f"{secs // 60} minutes ago"
-                        else:
+                        elif secs < 86400:
                             time_str = f"{secs // 3600} hours ago"
+                        else:
+                            time_str = f"{secs // 86400} days ago"
                             
                         font = QFont()
                         font.setPointSize(8)
