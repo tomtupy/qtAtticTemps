@@ -115,12 +115,18 @@ class AtticTempsWindow(QMainWindow):
                     sensorId, time, data, secondaryData, _ = row
                     if current_latest_time is None or time > current_latest_time:
                         current_latest_time = time
+
+                for row in rows:
+                    sensorId, time, data, secondaryData, _ = row
+                    if current_latest_time and (current_latest_time - time).total_seconds() > 60:
+                        continue
+
                     current_sensorData[sensorId] = {
                         "data": float(data) if data is not None else float('nan'),
                         "secondaryData": float(secondaryData) if secondaryData is not None else float('nan')
                     }
                 
-                if current_sensorData:
+                if current_sensorData or current_latest_time is not None:
                     self.last_sensor_data = current_sensorData
                     self.latest_time = current_latest_time
                 
@@ -184,9 +190,12 @@ class AtticTempsWindow(QMainWindow):
             return QBrush(QColor(0x57, 0x57, 0x57), Qt.BrushStyle.SolidPattern)
 
     def drawAtticPolygon(self, points, tempTextPos, humTextPos, temp, humidity):
+        if math.isnan(temp):
+            return
+
         poly = QPolygonF([QPointF(x, y) for x, y in points])
         
-        brush = QBrush(QColor(0x57, 0x57, 0x57), Qt.BrushStyle.SolidPattern) if math.isnan(temp) else self.getAtticGradientBrush(math.ceil(temp))
+        brush = self.getAtticGradientBrush(math.ceil(temp))
         self.house_scene.addPolygon(poly, QPen(Qt.PenStyle.NoPen), brush)
 
         font = QFont()
